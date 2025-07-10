@@ -3,19 +3,18 @@ import requests
 import base64
 from PIL import Image
 
-# inject custom CSS
+# -------------------- setup and UI --------------------
+st.set_page_config(page_title="Domain Chatbot", layout="centered")
+
+# --- custom CSS ---
 st.markdown("""
     <style>
-        body {
-            background-color: #0d1117;
-        }
+        body { background-color: #0d1117; }
         .stApp {
             background: radial-gradient(circle at top left, #0d1117, #000000);
             color: white;
         }
-        h1 {
-            color: #58a6ff;
-        }
+        h1 { color: #58a6ff; }
         .stTextInput, .stSelectbox, .stButton button {
             background-color: #161b22;
             color: white;
@@ -23,77 +22,84 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-
+# --- image ---
 try:
     with open("ai_bot.png", "rb") as img_file:
         img_bytes = img_file.read()
         encoded = base64.b64encode(img_bytes).decode()
-
-    st.markdown(
-        f"""
-        <div style='display: flex; justify-content: center; align-items: center;'>
-            <img src='data:image/png;base64,{encoded}' width='130' style='margin-bottom: 10px;'/>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+        st.markdown(f"<div style='text-align: center'><img src='data:image/png;base64,{encoded}' width='120'/></div>", unsafe_allow_html=True)
 except:
-    st.warning("Image 'ai_bot.png' not found. Please make sure it's in the same directory.")
+    st.warning("Image 'ai_bot.png' not found.")
 
-
-# title
+# --- title ---
 st.markdown("""
-    <h1 style='text-align: center; font-size: 32px; color: #58a6ff; font-family: "Segoe UI", sans-serif; margin-bottom: 10px;'>
-        ✧°. ⋆༺ Domain-Specific Chatbot ༻⋆. °✧
-    </h1>
+<h1 style='text-align: center; font-size: 32px; color: #58a6ff; font-family: "Segoe UI", sans-serif; margin-bottom: 10px;'>
+    ✧°. ⋆༺ Domain-Specific Chatbot ༻⋆. °✧
+</h1>
 """, unsafe_allow_html=True)
 
-# UI elements
-model = st.selectbox("Choose a Model", ["gemma3", "tinyllama", "qwen3:0.6b"])
-domain = st.selectbox("Choose a Domain", ["Science", "IT", "Medical", "Arts"])
-user_input = st.text_input("Ask a question")
+# -------------------- state initialization --------------------
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
 
+if 'model_selected' not in st.session_state:
+    st.session_state.model_selected = False
 
-# prompt and response
-# warn user if model is small
-if model == "tinyllama":
-    st.caption("⚠️ tinyllama is a smaller model. Responses may be less structured or informative.")
+# -------------------- model & domain selection --------------------
+if not st.session_state.model_selected:
+    st.session_state.model = st.selectbox("Choose a Model", ["gemma3", "tinyllama", "qwen3:0.6b"])
+    st.session_state.domain = st.selectbox("Choose a Domain", ["Science", "IT", "Medical", "Arts"])
+    if st.button("Start Chat"):
+        st.session_state.model_selected = True
+        st.rerun()
 
-# handle query
-if st.button("Ask") and user_input.strip():
-    
-    # simplified prompt for smaller models
-    if model == "tinyllama":
-        prompt = f"""
-        You are an expert in {domain}. Only answer questions related to this domain.
-        Be brief, accurate, and avoid speculation. If the question is off-topic, politely decline.
+else:
+    # -------------------- conversation UI --------------------
+    st.markdown(f"**Model:** {st.session_state.model} | **Domain:** {st.session_state.domain}")
+    st.divider()
 
-        Question: {user_input}
-        Answer:
-        """
+    for role, msg in st.session_state.chat_history:
+        if role == "user":
+            st.markdown(f"**You:** {msg}")
+        else:
+            st.markdown(f"**Bot:** {msg}")
 
-    elif model == "qwen3:0.6b":
-        prompt = (
-            f"You are a professional assistant that only answers questions related to the domain: **{domain}**.\n"
-            f"Your instructions:\n"
-            f"- If the question is related to **{domain}**, give a short, factual, and clear answer.\n"
-            f"- If the question is NOT related to **{domain}**, respond ONLY with:\n"
-            f'  "Sorry, I can only answer questions related to {domain}."\n'
-            f"- Do NOT add any extra thoughts, explanations, or guesses.\n"
-            f"- Do NOT include '<think>' or internal thoughts.\n\n"
-            f"Examples:\n"
-            f"Q: What is the capital of France?\n"
-            f"A: Sorry, I can only answer questions related to {domain}.\n\n"
-            f"Q: Who painted the Mona Lisa?\n"
-            f"A: Leonardo da Vinci.\n\n"
-            f"Q: {user_input}\n"
-            f"A:"
-        )
+    user_input = st.text_input("Your message", key="user_message")
 
-    
-    # full structured prompt for better models
-    else:
-        prompt = f"""
+    if st.button("Send") and user_input.strip():
+        domain = st.session_state.domain
+        model = st.session_state.model
+
+        if model == "tinyllama":
+            st.caption("⚠️ tinyllama is a smaller model. Responses may be less structured or informative.")
+
+        if model == "tinyllama":
+            prompt = f"""
+            You are an expert in {domain}. Only answer questions related to this domain.
+            Be brief, accurate, and avoid speculation. If the question is off-topic, politely decline.
+
+            Question: {user_input}
+            Answer:
+            """
+        elif model == "qwen3:0.6b":
+            prompt = (
+                f"You are a professional assistant that only answers questions related to the domain: **{domain}**.\n"
+                f"Your instructions:\n"
+                f"- If the question is related to **{domain}**, give a short, factual, and clear answer.\n"
+                f"- If the question is NOT related to **{domain}**, respond ONLY with:\n"
+                f'  "Sorry, I can only answer questions related to {domain}."\n'
+                f"- Do NOT add any extra thoughts, explanations, or guesses.\n"
+                f"- Do NOT include '<think>' or internal thoughts.\n\n"
+                f"Examples:\n"
+                f"Q: What is the capital of France?\n"
+                f"A: Sorry, I can only answer questions related to {domain}.\n\n"
+                f"Q: Who painted the Mona Lisa?\n"
+                f"A: Leonardo da Vinci.\n\n"
+                f"Q: {user_input}\n"
+                f"A:"
+            )
+        else:
+            prompt = f"""
             System:
             You are a domain-expert assistant specialized in **{domain}**, operating as a world-class professional with rigorous adherence to factual accuracy, domain compliance, and ethical safety.
             You must:
@@ -119,22 +125,27 @@ if st.button("Ask") and user_input.strip():
             Assistant:
             """
 
+        try:
+            response = requests.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False
+                }
+            )
+            data = response.json()
+            bot_reply = data.get("response", "[Error: No valid response]")
+        except Exception as e:
+            bot_reply = f"[Error: {str(e)}]"
 
-    try:
-        response = requests.post(
-            "http://localhost:11434/api/generate",
-            json={
-                "model": model,
-                "prompt": prompt,
-                "stream": False
-            }
-        )
-        data = response.json()
+        st.session_state.chat_history.append(("user", user_input))
+        st.session_state.chat_history.append(("bot", bot_reply))
+        st.rerun()
 
-        if 'response' in data:
-            st.markdown(f"**Response:** {data['response']}")
-        else:
-            st.error("No 'response' key found in the model output:")
-            st.json(data)
-    except Exception as e:
-        st.error(f"Something went wrong: {e}")
+    # ---------- option to go back ----------
+    if st.button("🔄 Change Model or Domain"):
+        st.session_state.model_selected = False
+        # optional: uncomment next line if you want to also clear the chat history
+        # st.session_state.chat_history = []
+        st.rerun()
